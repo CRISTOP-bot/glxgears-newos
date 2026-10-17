@@ -1,0 +1,4 @@
+[submodule "vendor/tinygl"]
+	path = vendor/tinygl
+	url = https://github.com/jserv/tinygl.git
+	branch = main
