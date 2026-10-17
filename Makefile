@@ -15,6 +15,7 @@ TINYGL_SRCS := \
 	$(TINYGL_ROOT)/src/list.c \
 	$(TINYGL_ROOT)/src/matrix.c \
 	$(TINYGL_ROOT)/src/misc.c \
+	$(TINYGL_ROOT)/src/msghandling.c \
 	$(TINYGL_ROOT)/src/select.c \
 	$(TINYGL_ROOT)/src/specbuf.c \
 	$(TINYGL_ROOT)/src/texture.c \
