@@ -1,4 +1,5 @@
-NEWOS_ROOT ?= $(abspath ../NEWOS)
+PORT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+NEWOS_ROOT ?= $(abspath $(PORT_DIR)/../..)
 TINYGL_ROOT ?= $(NEWOS_ROOT)/third_party/tinygl
 OUT ?= build/glxgears-newos.elf
 
