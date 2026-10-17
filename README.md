@@ -6,17 +6,25 @@ This is **not an X11/GLX implementation**: NEWOS does not currently provide an X
 
 ## Status
 
-The port source and build integration are in progress. It must be built against a NEWOS checkout with the `x86_64-elf` toolchain and TinyGL submodule initialized. The app opts into floating-point code; NEWOS's x86_64 FPU setup saves/restores per-thread state. This repository has not yet been boot-tested in QEMU, so it must not be described as a verified working port until that test passes.
+The port source and build integration are in progress. It must be built against a NEWOS checkout with the `x86_64-elf` toolchain and this repository's TinyGL submodule initialized. The app opts into floating-point code; NEWOS's x86_64 FPU setup saves/restores per-thread state. This repository has not yet been boot-tested in QEMU, so it must not be described as a verified working port until that test passes.
 
 ## Build
 
-From this repository, with the NEWOS checkout available:
+From a NEWOS checkout after initializing this component and its nested TinyGL dependency:
 
 ```sh
-make NEWOS_ROOT=/path/to/NEWOS TINYGL_ROOT=/path/to/NEWOS/third_party/tinygl
+git submodule update --init --recursive ports/glxgears-newos
+make toolchain
+make glxgears-newos
 ```
 
-The build uses `NEWOS_ROOT/toolchain/newos-gcc`, the NEWOS user ABI/library, and TinyGL's C sources. It produces `build/glxgears-newos.elf`; copy/install it as `/bin/glxgears-newos` in a NEWOS image. The demo needs a Limine boot with a framebuffer and is capped to a finite number of frames by default so it returns to the shell.
+The NEWOS Makefile invokes this component's Makefile, which uses `toolchain/newos-gcc`, the NEWOS user ABI/library, and TinyGL's C sources. It produces `build/userland/glxgears-newos.elf`; the optional package recipe installs it as `/bin/glxgears-newos`. The demo needs a Limine boot with a framebuffer and is capped to a finite number of frames by default so it returns to the shell.
+
+When building the component outside the NEWOS tree, set `NEWOS_ROOT` explicitly:
+
+```sh
+make -C /path/to/glxgears-newos NEWOS_ROOT=/path/to/NEWOS
+```
 
 ## Upstream
 

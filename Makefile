@@ -1,6 +1,6 @@
 PORT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 NEWOS_ROOT ?= $(abspath $(PORT_DIR)/../..)
-TINYGL_ROOT ?= $(NEWOS_ROOT)/third_party/tinygl
+TINYGL_ROOT ?= $(PORT_DIR)/vendor/tinygl
 OUT ?= build/glxgears-newos.elf
 
 TINYGL_SRCS := \
@@ -32,7 +32,7 @@ all: check-inputs $(OUT)
 
 check-inputs:
 	@test -x "$(NEWOS_ROOT)/toolchain/newos-gcc" || { echo "missing NEWOS_ROOT/toolchain/newos-gcc; build the NEWOS toolchain first" >&2; exit 1; }
-	@test -f "$(TINYGL_ROOT)/include/TGL/gl.h" || { echo "TinyGL submodule is missing; initialize NEWOS submodules" >&2; exit 1; }
+	@test -f "$(TINYGL_ROOT)/include/TGL/gl.h" || { echo "TinyGL submodule is missing; initialize this repository's vendor/tinygl submodule" >&2; exit 1; }
 
 $(OUT): src/glxgears_newos.c src/allocator.c $(TINYGL_SRCS)
 	@mkdir -p $(dir $@)
