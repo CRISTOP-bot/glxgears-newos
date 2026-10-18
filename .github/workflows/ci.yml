@@ -9,57 +9,67 @@ permissions:
   contents: read
 
 jobs:
-  newos-cross-build:
-    name: Build against the pinned NEWOS x86_64 SDK
-    runs-on: ubuntu-26.04
-    timeout-minutes: 120
+  build:
+    name: Full NEWOS cross-build and glxgears validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - name: Check out this port and its pinned TinyGL submodule
         uses: actions/checkout@v4
         with:
-          submodules: true
+          path: port
+          submodules: recursive
 
-      # Pin the NEWOS superproject so its x86_64-elf toolchain source,
-      # SDK ABI, and userland headers are repeatable inputs to this build.
-      - name: Check out the pinned NEWOS SDK sources
+      # This exact NEWOS revision passed the upstream full-superproject CI,
+      # including its toolchain, OS image, SDK, and TinyGL/glxgears target.
+      - name: Check out the verified NEWOS superproject revision
         uses: actions/checkout@v4
         with:
           repository: CRISTOP-bot/NEWOS
-          ref: 6cd13e56d3dfc87cc001d0fc83ca5c094ae3c452
+          ref: 6b4a9b7764ed9768fff72bcd134b37115f878815
           path: newos
 
-      - name: Initialize NEWOS toolchain and userland modules
-        run: git -C newos submodule update --init toolchain userland
-
-      - name: Install cross-toolchain build dependencies
+      - name: Install NEWOS build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            bison flex gcc-16 g++-16 libgmp-dev libmpc-dev libmpfr-dev \
-            make texinfo xz-utils
+          sudo apt-get install -y --no-install-recommends \
+            build-essential gcc g++ make nasm binutils python3 curl unzip \
+            libgmp-dev libmpfr-dev libmpc-dev flex bison texinfo \
+            qemu-system-x86 grub-common grub-pc-bin grub-efi-amd64-bin \
+            xorriso mtools ovmf
 
-      - name: Build the authentic NEWOS x86_64-elf toolchain
-        working-directory: newos
-        run: CC=gcc-16 CXX=g++-16 make toolchain
+      # Reproduce NEWOS's successful upstream entry point; this performs its
+      # real pinned x86_64-elf toolchain build and stages the NEWOS SDK.
+      - name: Build the full NEWOS superproject
+        run: make -C newos all
 
-      - name: Verify the compiler targets NEWOS's x86_64-elf ABI
+      # The upstream superproject pins a port revision of its own. Replace
+      # only that working tree with the checked-out PR version so the final
+      # cross-build tests the exact source being reviewed here.
+      - name: Overlay this PR's port sources
+        run: |
+          rsync -a --delete --exclude='.git' \
+            "$GITHUB_WORKSPACE/port/" \
+            "$GITHUB_WORKSPACE/newos/ports/glxgears-newos/"
+
+      - name: Verify the real NEWOS cross compiler
         run: |
           compiler="$GITHUB_WORKSPACE/newos/toolchain/out/bin/x86_64-elf-gcc"
           test -x "$compiler"
-          target="$($compiler -dumpmachine)"
+          target="$("$compiler" -dumpmachine)"
           test "$target" = x86_64-elf
           printf 'Cross compiler target: %s\n' "$target"
 
-      - name: Cross-build the port with NEWOS's SDK wrapper
+      - name: Cross-build this PR's port with the NEWOS SDK
         run: |
-          make -C "$GITHUB_WORKSPACE" \
+          make -C "$GITHUB_WORKSPACE/newos/ports/glxgears-newos" \
             NEWOS_ROOT="$GITHUB_WORKSPACE/newos" \
-            TINYGL_ROOT="$GITHUB_WORKSPACE/vendor/tinygl" \
-            OUT="$GITHUB_WORKSPACE/build/glxgears-newos.elf"
+            TINYGL_ROOT="$GITHUB_WORKSPACE/newos/ports/glxgears-newos/vendor/tinygl" \
+            OUT="$GITHUB_WORKSPACE/newos/build/userland/glxgears-newos.elf"
 
       - name: Verify the linked NEWOS executable
         run: |
-          elf="$GITHUB_WORKSPACE/build/glxgears-newos.elf"
+          elf="$GITHUB_WORKSPACE/newos/build/userland/glxgears-newos.elf"
           test -s "$elf"
           readelf -h "$elf" | grep -Eq 'Class:[[:space:]]+ELF64'
           readelf -h "$elf" | grep -Eq 'Type:[[:space:]]+EXEC'
