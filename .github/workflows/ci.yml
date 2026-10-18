@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  newos-cross-build:
+    name: Build against the pinned NEWOS x86_64 SDK
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out this port and its pinned TinyGL submodule
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      # Pin the NEWOS superproject so its x86_64-elf toolchain source,
+      # SDK ABI, and userland headers are repeatable inputs to this build.
+      - name: Check out the pinned NEWOS SDK sources
+        uses: actions/checkout@v4
+        with:
+          repository: CRISTOP-bot/NEWOS
+          ref: 6cd13e56d3dfc87cc001d0fc83ca5c094ae3c452
+          path: newos
+
+      - name: Initialize NEWOS toolchain and userland modules
+        run: git -C newos submodule update --init toolchain userland
+
+      - name: Install cross-toolchain build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            bison flex gcc-16 g++-16 libgmp-dev libmpc-dev libmpfr-dev \
+            make texinfo xz-utils
+
+      - name: Build the authentic NEWOS x86_64-elf toolchain
+        working-directory: newos
+        run: CC=gcc-16 CXX=g++-16 make toolchain
+
+      - name: Verify the compiler targets NEWOS's x86_64-elf ABI
+        run: |
+          compiler="$GITHUB_WORKSPACE/newos/toolchain/out/bin/x86_64-elf-gcc"
+          test -x "$compiler"
+          target="$($compiler -dumpmachine)"
+          test "$target" = x86_64-elf
+          printf 'Cross compiler target: %s\n' "$target"
+
+      - name: Cross-build the port with NEWOS's SDK wrapper
+        run: |
+          make -C "$GITHUB_WORKSPACE" \
+            NEWOS_ROOT="$GITHUB_WORKSPACE/newos" \
+            TINYGL_ROOT="$GITHUB_WORKSPACE/vendor/tinygl" \
+            OUT="$GITHUB_WORKSPACE/build/glxgears-newos.elf"
+
+      - name: Verify the linked NEWOS executable
+        run: |
+          elf="$GITHUB_WORKSPACE/build/glxgears-newos.elf"
+          test -s "$elf"
+          readelf -h "$elf" | grep -Eq 'Class:[[:space:]]+ELF64'
+          readelf -h "$elf" | grep -Eq 'Type:[[:space:]]+EXEC'
+          readelf -h "$elf" | grep -Eq 'Machine:[[:space:]]+Advanced Micro Devices X86-64'
+          readelf -h "$elf" | grep -Eq 'Entry point address:[[:space:]]+0x[1-9a-fA-F]'

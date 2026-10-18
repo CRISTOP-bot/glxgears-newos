@@ -38,6 +38,7 @@ check-inputs:
 $(OUT): src/glxgears_newos.c src/allocator.c $(TINYGL_SRCS)
 	@mkdir -p $(dir $@)
 	NEWOS_FPU=1 "$(NEWOS_ROOT)/toolchain/newos-gcc" \
+		-std=gnu11 \
 		-DNO_DEBUG_OUTPUT -DTGL_FEATURE_RENDER_BITS=32 \
 		-I"$(TINYGL_ROOT)/include" -I"$(TINYGL_ROOT)/src" \
 		-I"$(NEWOS_ROOT)/user/lib" \
@@ -45,3 +46,4 @@ $(OUT): src/glxgears_newos.c src/allocator.c $(TINYGL_SRCS)
 
 clean:
 	rm -rf build
+
