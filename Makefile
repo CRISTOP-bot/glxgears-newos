@@ -46,3 +46,4 @@ $(OUT): src/glxgears_newos.c src/allocator.c $(TINYGL_SRCS)
 
 clean:
 	rm -rf build
+

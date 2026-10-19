@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Full NEWOS cross-build and glxgears validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out this port and its pinned TinyGL submodule
+        uses: actions/checkout@v4
+        with:
+          path: port
+          submodules: recursive
+
+      # This exact NEWOS revision passed the upstream full-superproject CI,
+      # including its toolchain, OS image, SDK, and TinyGL/glxgears target.
+      - name: Check out the verified NEWOS superproject revision
+        uses: actions/checkout@v4
+        with:
+          repository: CRISTOP-bot/NEWOS
+          ref: 6b4a9b7764ed9768fff72bcd134b37115f878815
+          path: newos
+
+      - name: Install NEWOS build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential gcc g++ make nasm binutils python3 curl unzip \
+            libgmp-dev libmpfr-dev libmpc-dev flex bison texinfo \
+            qemu-system-x86 grub-common grub-pc-bin grub-efi-amd64-bin \
+            xorriso mtools ovmf
+
+      # Reproduce NEWOS's successful upstream entry point; this performs its
+      # real pinned x86_64-elf toolchain build and stages the NEWOS SDK.
+      - name: Build the full NEWOS superproject
+        run: make -C newos all
+
+      # The upstream superproject pins a port revision of its own. Replace
+      # only that working tree with the checked-out PR version so the final
+      # cross-build tests the exact source being reviewed here.
+      - name: Overlay this PR's port sources
+        run: |
+          rsync -a --delete --exclude='.git' \
+            "$GITHUB_WORKSPACE/port/" \
+            "$GITHUB_WORKSPACE/newos/ports/glxgears-newos/"
+
+      - name: Verify the real NEWOS cross compiler
+        run: |
+          compiler="$GITHUB_WORKSPACE/newos/toolchain/out/bin/x86_64-elf-gcc"
+          test -x "$compiler"
+          target="$("$compiler" -dumpmachine)"
+          test "$target" = x86_64-elf
+          printf 'Cross compiler target: %s\n' "$target"
+
+      - name: Cross-build this PR's port with the NEWOS SDK
+        run: |
+          make -C "$GITHUB_WORKSPACE/newos/ports/glxgears-newos" \
+            NEWOS_ROOT="$GITHUB_WORKSPACE/newos" \
+            TINYGL_ROOT="$GITHUB_WORKSPACE/newos/ports/glxgears-newos/vendor/tinygl" \
+            OUT="$GITHUB_WORKSPACE/newos/build/userland/glxgears-newos.elf"
+
+      - name: Verify the linked NEWOS executable
+        run: |
+          elf="$GITHUB_WORKSPACE/newos/build/userland/glxgears-newos.elf"
+          test -s "$elf"
+          readelf -h "$elf" | grep -Eq 'Class:[[:space:]]+ELF64'
+          readelf -h "$elf" | grep -Eq 'Type:[[:space:]]+EXEC'
+          readelf -h "$elf" | grep -Eq 'Machine:[[:space:]]+Advanced Micro Devices X86-64'
+          readelf -h "$elf" | grep -Eq 'Entry point address:[[:space:]]+0x[1-9a-fA-F]'
